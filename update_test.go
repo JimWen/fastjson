@@ -14,7 +14,7 @@ func TestObjectDelSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error during parse: %s", err)
 	}
-	o, err = v.Object()
+	o, err = v.ToObject()
 	if err != nil {
 		t.Fatalf("cannot obtain object: %s", err)
 	}

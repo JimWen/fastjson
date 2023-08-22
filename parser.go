@@ -454,6 +454,10 @@ type Object struct {
 	keysUnescaped bool
 }
 
+func NewObject() Object {
+	return Object{kvs: make([]kv, 0), keysUnescaped: false}
+}
+
 func (o *Object) reset() {
 	o.kvs = o.kvs[:0]
 	o.keysUnescaped = false
@@ -572,6 +576,22 @@ type Value struct {
 	t Type
 }
 
+func NewObjectValue() *Value {
+	return &Value{o: NewObject(), t: TypeObject}
+}
+
+func NewValueFromObject(o Object) *Value {
+	return &Value{o: o, t: TypeObject}
+}
+
+func NewArrayValue() *Value {
+	return &Value{a: make([]*Value, 0), t: TypeArray}
+}
+
+func NewValueFromArray(v []*Value) *Value {
+	return &Value{a: v, t: TypeArray}
+}
+
 // MarshalTo appends marshaled v to dst and returns the result.
 func (v *Value) MarshalTo(dst []byte) []byte {
 	switch v.t {
@@ -612,7 +632,7 @@ func (v *Value) MarshalTo(dst []byte) []byte {
 // The function is for debugging purposes only. It isn't optimized for speed.
 // See MarshalTo instead.
 //
-// Don't confuse this function with StringBytes, which must be called
+// Don't confuse this function with ToStringBytes, which must be called
 // for obtaining the underlying JSON string for the v.
 func (v *Value) String() string {
 	b := v.MarshalTo(nil)
@@ -658,6 +678,8 @@ func (t Type) String() string {
 		return "array"
 	case TypeString:
 		return "string"
+	case typeRawString:
+		return "raw_string"
 	case TypeNumber:
 		return "number"
 	case TypeTrue:
@@ -685,7 +707,7 @@ func (v *Value) Type() Type {
 
 // Exists returns true if the field exists for the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 func (v *Value) Exists(keys ...string) bool {
 	v = v.Get(keys...)
 	return v != nil
@@ -693,7 +715,7 @@ func (v *Value) Exists(keys ...string) bool {
 
 // Get returns value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // nil is returned for non-existing keys path.
 //
@@ -723,7 +745,7 @@ func (v *Value) Get(keys ...string) *Value {
 
 // GetObject returns object value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // nil is returned for non-existing keys path or for invalid value type.
 //
@@ -738,7 +760,7 @@ func (v *Value) GetObject(keys ...string) *Object {
 
 // GetArray returns array value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // nil is returned for non-existing keys path or for invalid value type.
 //
@@ -753,7 +775,7 @@ func (v *Value) GetArray(keys ...string) []*Value {
 
 // GetFloat64 returns float64 value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetFloat64(keys ...string) float64 {
@@ -766,7 +788,7 @@ func (v *Value) GetFloat64(keys ...string) float64 {
 
 // GetInt returns int value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetInt(keys ...string) int {
@@ -784,7 +806,7 @@ func (v *Value) GetInt(keys ...string) int {
 
 // GetUint returns uint value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetUint(keys ...string) uint {
@@ -802,7 +824,7 @@ func (v *Value) GetUint(keys ...string) uint {
 
 // GetInt64 returns int64 value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetInt64(keys ...string) int64 {
@@ -815,7 +837,7 @@ func (v *Value) GetInt64(keys ...string) int64 {
 
 // GetUint64 returns uint64 value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetUint64(keys ...string) uint64 {
@@ -828,22 +850,30 @@ func (v *Value) GetUint64(keys ...string) uint64 {
 
 // GetStringBytes returns string value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // nil is returned for non-existing keys path or for invalid value type.
 //
 // The returned string is valid until Parse is called on the Parser returned v.
 func (v *Value) GetStringBytes(keys ...string) []byte {
 	v = v.Get(keys...)
-	if v == nil || v.Type() != TypeString {
+	if v == nil || v.Type() != TypeString || v.Type() != typeRawString {
 		return nil
 	}
 	return s2b(v.s)
 }
 
+func (v *Value) GetString(keys ...string) string {
+	v = v.Get(keys...)
+	if v == nil || v.Type() != TypeString || v.Type() != typeRawString {
+		return ""
+	}
+	return v.s
+}
+
 // GetBool returns bool value by the given keys path.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // false is returned for non-existing keys path or for invalid value type.
 func (v *Value) GetBool(keys ...string) bool {
@@ -859,51 +889,100 @@ func (v *Value) GetBool(keys ...string) bool {
 // The returned object is valid until Parse is called on the Parser returned v.
 //
 // Use GetObject if you don't need error handling.
-func (v *Value) Object() (*Object, error) {
+func (v *Value) ToObject() (*Object, error) {
 	if v.t != TypeObject {
 		return nil, fmt.Errorf("value doesn't contain object; it contains %s", v.Type())
 	}
 	return &v.o, nil
 }
 
-// Array returns the underlying JSON array for the v.
+func (v *Value) MustObject() *Object {
+	if v.t != TypeObject {
+		panic(fmt.Errorf("value doesn't contain object; it contains %s", v.Type()))
+	}
+
+	return &v.o
+}
+
+// ToArray returns the underlying JSON array for the v.
 //
 // The returned array is valid until Parse is called on the Parser returned v.
 //
 // Use GetArray if you don't need error handling.
-func (v *Value) Array() ([]*Value, error) {
+func (v *Value) ToArray() ([]*Value, error) {
 	if v.t != TypeArray {
 		return nil, fmt.Errorf("value doesn't contain array; it contains %s", v.Type())
 	}
 	return v.a, nil
 }
 
-// StringBytes returns the underlying JSON string for the v.
+func (v *Value) MustArray() []*Value {
+	if v.t != TypeArray {
+		panic(fmt.Errorf("value doesn't contain array; it contains %s", v.Type()))
+	}
+
+	return v.a
+}
+
+// ToStringBytes returns the underlying JSON string for the v.
 //
 // The returned string is valid until Parse is called on the Parser returned v.
 //
 // Use GetStringBytes if you don't need error handling.
-func (v *Value) StringBytes() ([]byte, error) {
-	if v.Type() != TypeString {
+func (v *Value) ToStringBytes() ([]byte, error) {
+	if v.Type() != TypeString && v.Type() != typeRawString {
 		return nil, fmt.Errorf("value doesn't contain string; it contains %s", v.Type())
 	}
 	return s2b(v.s), nil
 }
 
-// Float64 returns the underlying JSON number for the v.
+func (v *Value) MustStringBytes() []byte {
+	if v.Type() != TypeString && v.Type() != typeRawString {
+		panic(fmt.Errorf("value doesn't contain string; it contains %s", v.Type()))
+	}
+
+	return s2b(v.s)
+}
+
+func (v *Value) ToString() (string, error) {
+	if v.Type() != TypeString && v.Type() != typeRawString {
+		return "", fmt.Errorf("value doesn't contain string; it contains %s", v.Type())
+	}
+
+	return v.s, nil
+}
+
+func (v *Value) MustString() string {
+	if v.Type() != TypeString && v.Type() != typeRawString {
+		panic(fmt.Errorf("value doesn't contain string; it contains %s", v.Type()))
+	}
+
+	return v.s
+}
+
+// ToFloat64 returns the underlying JSON number for the v.
 //
 // Use GetFloat64 if you don't need error handling.
-func (v *Value) Float64() (float64, error) {
+func (v *Value) ToFloat64() (float64, error) {
 	if v.Type() != TypeNumber {
 		return 0, fmt.Errorf("value doesn't contain number; it contains %s", v.Type())
 	}
 	return fastfloat.Parse(v.s)
 }
 
-// Int returns the underlying JSON int for the v.
+func (v *Value) MustFloat64() float64 {
+	if v.Type() != TypeNumber {
+		panic(fmt.Errorf("value doesn't contain number; it contains %s", v.Type()))
+	}
+
+	n, _ := fastfloat.Parse(v.s)
+	return n
+}
+
+// ToInt returns the underlying JSON int for the v.
 //
 // Use GetInt if you don't need error handling.
-func (v *Value) Int() (int, error) {
+func (v *Value) ToInt() (int, error) {
 	if v.Type() != TypeNumber {
 		return 0, fmt.Errorf("value doesn't contain number; it contains %s", v.Type())
 	}
@@ -918,10 +997,26 @@ func (v *Value) Int() (int, error) {
 	return nn, nil
 }
 
-// Uint returns the underlying JSON uint for the v.
+func (v *Value) MustInt() int {
+	if v.Type() != TypeNumber {
+		panic(fmt.Errorf("value doesn't contain number; it contains %s", v.Type()))
+	}
+
+	n, err := fastfloat.ParseInt64(v.s)
+	if err != nil {
+		return 0
+	}
+	nn := int(n)
+	if int64(nn) != n {
+		return 0
+	}
+	return nn
+}
+
+// ToUint returns the underlying JSON uint for the v.
 //
 // Use GetInt if you don't need error handling.
-func (v *Value) Uint() (uint, error) {
+func (v *Value) ToUint() (uint, error) {
 	if v.Type() != TypeNumber {
 		return 0, fmt.Errorf("value doesn't contain number; it contains %s", v.Type())
 	}
@@ -936,30 +1031,64 @@ func (v *Value) Uint() (uint, error) {
 	return nn, nil
 }
 
-// Int64 returns the underlying JSON int64 for the v.
+func (v *Value) MustUint() uint {
+	if v.Type() != TypeNumber {
+		panic(fmt.Errorf("value doesn't contain number; it contains %s", v.Type()))
+	}
+
+	n, err := fastfloat.ParseUint64(v.s)
+	if err != nil {
+		return 0
+	}
+	nn := uint(n)
+	if uint64(nn) != n {
+		return 0
+	}
+	return nn
+}
+
+// ToInt64 returns the underlying JSON int64 for the v.
 //
 // Use GetInt64 if you don't need error handling.
-func (v *Value) Int64() (int64, error) {
+func (v *Value) ToInt64() (int64, error) {
 	if v.Type() != TypeNumber {
 		return 0, fmt.Errorf("value doesn't contain number; it contains %s", v.Type())
 	}
 	return fastfloat.ParseInt64(v.s)
 }
 
-// Uint64 returns the underlying JSON uint64 for the v.
+func (v *Value) MustInt64() int64 {
+	if v.Type() != TypeNumber {
+		panic(fmt.Errorf("value doesn't contain number; it contains %s", v.Type()))
+	}
+
+	ret, _ := fastfloat.ParseInt64(v.s)
+	return ret
+}
+
+// ToUint64 returns the underlying JSON uint64 for the v.
 //
 // Use GetInt64 if you don't need error handling.
-func (v *Value) Uint64() (uint64, error) {
+func (v *Value) ToUint64() (uint64, error) {
 	if v.Type() != TypeNumber {
 		return 0, fmt.Errorf("value doesn't contain number; it contains %s", v.Type())
 	}
 	return fastfloat.ParseUint64(v.s)
 }
 
-// Bool returns the underlying JSON bool for the v.
+func (v *Value) MustUint64() uint64 {
+	if v.Type() != TypeNumber {
+		panic(fmt.Errorf("value doesn't contain number; it contains %s", v.Type()))
+	}
+
+	ret, _ := fastfloat.ParseUint64(v.s)
+	return ret
+}
+
+// ToBool returns the underlying JSON bool for the v.
 //
 // Use GetBool if you don't need error handling.
-func (v *Value) Bool() (bool, error) {
+func (v *Value) ToBool() (bool, error) {
 	if v.t == TypeTrue {
 		return true, nil
 	}
@@ -967,6 +1096,16 @@ func (v *Value) Bool() (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("value doesn't contain bool; it contains %s", v.Type())
+}
+
+func (v *Value) MustBool() bool {
+	if v.t == TypeTrue {
+		return true
+	}
+	if v.t == TypeFalse {
+		return false
+	}
+	return false
 }
 
 var (

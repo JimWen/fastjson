@@ -159,7 +159,7 @@ func ExampleObject_Visit() {
 	if err != nil {
 		log.Fatalf("cannot parse json: %s", err)
 	}
-	o, err := v.Object()
+	o, err := v.ToObject()
 	if err != nil {
 		log.Fatalf("cannot obtain object from json value: %s", err)
 	}

@@ -30,7 +30,7 @@ func TestParseUint64BestEffort(t *testing.T) {
 	f("13223 ", 0)
 	f("1-2", 0)
 
-	// Int
+	// ToInt
 	f("1", 1)
 	f("123", 123)
 	f("1234567890", 1234567890)
@@ -114,7 +114,7 @@ func TestParseInt64BestEffort(t *testing.T) {
 	f("13223 ", 0)
 	f("1-2", 0)
 
-	// Int
+	// ToInt
 	f("0", 0)
 	f("-0", 0)
 	f("1", 1)
@@ -173,7 +173,7 @@ func TestParseInt64Success(t *testing.T) {
 		}
 	}
 
-	// Int
+	// ToInt
 	f("0", 0)
 	f("-0", 0)
 	f("1", 1)

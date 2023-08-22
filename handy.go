@@ -5,7 +5,7 @@ var handyPool ParserPool
 // GetString returns string value for the field identified by keys path
 // in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // An empty string is returned on error. Use Parser for proper error handling.
 //
@@ -26,7 +26,7 @@ func GetString(data []byte, keys ...string) string {
 // GetBytes returns string value for the field identified by keys path
 // in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // nil is returned on error. Use Parser for proper error handling.
 //
@@ -53,7 +53,7 @@ func GetBytes(data []byte, keys ...string) []byte {
 // GetInt returns int value for the field identified by keys path
 // in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned on error. Use Parser for proper error handling.
 //
@@ -73,7 +73,7 @@ func GetInt(data []byte, keys ...string) int {
 // GetFloat64 returns float64 value for the field identified by keys path
 // in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // 0 is returned on error. Use Parser for proper error handling.
 //
@@ -93,7 +93,7 @@ func GetFloat64(data []byte, keys ...string) float64 {
 // GetBool returns boolean value for the field identified by keys path
 // in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // False is returned on error. Use Parser for proper error handling.
 //
@@ -112,7 +112,7 @@ func GetBool(data []byte, keys ...string) bool {
 
 // Exists returns true if the field identified by keys path exists in JSON data.
 //
-// Array indexes may be represented as decimal numbers in keys.
+// ToArray indexes may be represented as decimal numbers in keys.
 //
 // False is returned on error. Use Parser for proper error handling.
 //

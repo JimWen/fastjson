@@ -9,7 +9,7 @@ import (
 
 func ExampleObject_Del() {
 	v := fastjson.MustParse(`{"foo": 123, "bar": [1,2], "baz": "xyz"}`)
-	o, err := v.Object()
+	o, err := v.ToObject()
 	if err != nil {
 		log.Fatalf("cannot otain object: %s", err)
 	}

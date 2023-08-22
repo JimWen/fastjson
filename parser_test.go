@@ -198,73 +198,73 @@ func TestValueInvalidTypeConversion(t *testing.T) {
 	a := v.GetArray()
 
 	// object
-	_, err = a[0].Object()
+	_, err = a[0].ToObject()
 	if err != nil {
 		t.Fatalf("unexpected error when obtaining object: %s", err)
 	}
-	_, err = a[0].Array()
+	_, err = a[0].ToArray()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain array from object")
 	}
 
 	// array
-	_, err = a[1].Array()
+	_, err = a[1].ToArray()
 	if err != nil {
 		t.Fatalf("unexpected error when obtaining array: %s", err)
 	}
-	_, err = a[1].Object()
+	_, err = a[1].ToObject()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain object from array")
 	}
 
 	// string
-	_, err = a[2].StringBytes()
+	_, err = a[2].ToStringBytes()
 	if err != nil {
 		t.Fatalf("unexpected error when obtaining string: %s", err)
 	}
-	_, err = a[2].Int()
+	_, err = a[2].ToInt()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain int from string")
 	}
-	_, err = a[2].Int64()
+	_, err = a[2].ToInt64()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain int64 from string")
 	}
-	_, err = a[2].Uint()
+	_, err = a[2].ToUint()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain uint from string")
 	}
-	_, err = a[2].Uint64()
+	_, err = a[2].ToUint64()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain uint64 from string")
 	}
-	_, err = a[2].Float64()
+	_, err = a[2].ToFloat64()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain float64 from string")
 	}
 
 	// number
-	_, err = a[3].Float64()
+	_, err = a[3].ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error when obtaining float64: %s", err)
 	}
-	_, err = a[3].StringBytes()
+	_, err = a[3].ToStringBytes()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain string from number")
 	}
 
 	// true
-	_, err = a[4].Bool()
+	_, err = a[4].ToBool()
 	if err != nil {
 		t.Fatalf("unexpected error when obtaining bool: %s", err)
 	}
-	_, err = a[4].StringBytes()
+	_, err = a[4].ToStringBytes()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain string from bool")
 	}
 
 	// null
-	_, err = a[5].Bool()
+	_, err = a[5].ToBool()
 	if err == nil {
 		t.Fatalf("expecting non-nil error when trying to obtain bool from null")
 	}
@@ -385,7 +385,7 @@ func TestValueGetTyped(t *testing.T) {
 	}
 
 	zv := v.Get("zero_float1")
-	zf, err := zv.Float64()
+	zf, err := zv.ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -394,7 +394,7 @@ func TestValueGetTyped(t *testing.T) {
 	}
 
 	zv = v.Get("zero_float2")
-	zf, err = zv.Float64()
+	zf, err = zv.ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -403,7 +403,7 @@ func TestValueGetTyped(t *testing.T) {
 	}
 
 	infv := v.Get("inf_float")
-	inff, err := infv.Float64()
+	inff, err := infv.ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -412,7 +412,7 @@ func TestValueGetTyped(t *testing.T) {
 	}
 
 	ninfv := v.Get("minus_inf_float")
-	ninff, err := ninfv.Float64()
+	ninff, err := ninfv.ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -421,7 +421,7 @@ func TestValueGetTyped(t *testing.T) {
 	}
 
 	nanv := v.Get("nan")
-	nanf, err := nanv.Float64()
+	nanf, err := nanv.ToFloat64()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -468,7 +468,7 @@ func TestValueGet(t *testing.T) {
 		if vv == nil {
 			t.Fatalf("cannot find the required value")
 		}
-		o, err := vv.Object()
+		o, err := vv.ToObject()
 		if err != nil {
 			t.Fatalf("cannot obtain object: %s", err)
 		}
@@ -486,7 +486,7 @@ func TestValueGet(t *testing.T) {
 					t.Fatalf("unexpected array; got %q; want %q", s, `["baz"]`)
 				}
 			case "x":
-				sb, err := v.StringBytes()
+				sb, err := v.ToStringBytes()
 				if err != nil {
 					t.Fatalf("cannot obtain string: %s", err)
 				}
@@ -556,7 +556,7 @@ func TestParserParse(t *testing.T) {
 			t.Fatalf("unexpected error when parsing string")
 		}
 		// Make sure only valid string part remains
-		sb, err := v.StringBytes()
+		sb, err := v.ToStringBytes()
 		if err != nil {
 			t.Fatalf("cannot obtain string: %s", err)
 		}
@@ -568,7 +568,7 @@ func TestParserParse(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error when parsing string")
 		}
-		sb, err = v.StringBytes()
+		sb, err = v.ToStringBytes()
 		if err != nil {
 			t.Fatalf("cannot obtain string: %s", err)
 		}
@@ -580,7 +580,7 @@ func TestParserParse(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error when parsing string")
 		}
-		sb, err = v.StringBytes()
+		sb, err = v.ToStringBytes()
 		if err != nil {
 			t.Fatalf("cannot obtain string: %s", err)
 		}
@@ -596,7 +596,7 @@ func TestParserParse(t *testing.T) {
 		}
 
 		// Make sure invalid int isn't parsed.
-		n, err := v.Int()
+		n, err := v.ToInt()
 		if err == nil {
 			t.Fatalf("expecting non-nil error")
 		}
@@ -741,7 +741,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeObject || tp.String() != "object" {
 			t.Fatalf("unexpected value obtained for empty object: %#v", v)
 		}
-		o, err := v.Object()
+		o, err := v.ToObject()
 		if err != nil {
 			t.Fatalf("cannot obtain object: %s", err)
 		}
@@ -764,7 +764,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeArray || tp.String() != "array" {
 			t.Fatalf("unexpected value obtained for empty array: %#v", v)
 		}
-		a, err := v.Array()
+		a, err := v.ToArray()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -802,7 +802,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeTrue || tp.String() != "true" {
 			t.Fatalf("unexpected value obtained for true: %#v", v)
 		}
-		b, err := v.Bool()
+		b, err := v.ToBool()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -824,7 +824,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeFalse || tp.String() != "false" {
 			t.Fatalf("unexpected value obtained for false: %#v", v)
 		}
-		b, err := v.Bool()
+		b, err := v.ToBool()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -846,7 +846,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeNumber || tp.String() != "number" {
 			t.Fatalf("unexpected type obtained for integer: %#v", v)
 		}
-		n, err := v.Int()
+		n, err := v.ToInt()
 		if err != nil {
 			t.Fatalf("cannot obtain int: %s", err)
 		}
@@ -868,7 +868,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeNumber || tp.String() != "number" {
 			t.Fatalf("unexpected type obtained for int64: %#v", v)
 		}
-		n, err := v.Int64()
+		n, err := v.ToInt64()
 		if err != nil {
 			t.Fatalf("cannot obtain int64: %s", err)
 		}
@@ -890,7 +890,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeNumber || tp.String() != "number" {
 			t.Fatalf("unexpected type obtained for uint: %#v", v)
 		}
-		n, err := v.Uint64()
+		n, err := v.ToUint64()
 		if err != nil {
 			t.Fatalf("cannot obtain uint64: %s", err)
 		}
@@ -912,7 +912,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeNumber || tp.String() != "number" {
 			t.Fatalf("unexpected type obtained for uint64: %#v", v)
 		}
-		n, err := v.Uint64()
+		n, err := v.ToUint64()
 		if err != nil {
 			t.Fatalf("cannot obtain uint64: %s", err)
 		}
@@ -930,7 +930,7 @@ func TestParserParse(t *testing.T) {
 		if err != nil {
 			t.Fatalf("cannot parse integer: %s", err)
 		}
-		n, err := v.Float64()
+		n, err := v.ToFloat64()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -956,7 +956,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeString || tp.String() != "string" {
 			t.Fatalf("unexpected type obtained for string: %#v", v)
 		}
-		sb, err := v.StringBytes()
+		sb, err := v.ToStringBytes()
 		if err != nil {
 			t.Fatalf("cannot obtain string: %s", err)
 		}
@@ -978,7 +978,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeString {
 			t.Fatalf("unexpected type obtained for string: %#v", v)
 		}
-		sb, err := v.StringBytes()
+		sb, err := v.ToStringBytes()
 		if err != nil {
 			t.Fatalf("cannot obtain string: %s", err)
 		}
@@ -1001,7 +1001,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeObject {
 			t.Fatalf("unexpected type obtained for object: %#v", v)
 		}
-		o, err := v.Object()
+		o, err := v.ToObject()
 		if err != nil {
 			t.Fatalf("cannot obtain object: %s", err)
 		}
@@ -1029,7 +1029,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeObject {
 			t.Fatalf("unexpected type obtained for object: %#v", v)
 		}
-		o, err := v.Object()
+		o, err := v.ToObject()
 		if err != nil {
 			t.Fatalf("cannot obtain object: %s", err)
 		}
@@ -1065,7 +1065,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeArray {
 			t.Fatalf("unexpected type obtained for array: %#v", v)
 		}
-		a, err := v.Array()
+		a, err := v.ToArray()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1091,7 +1091,7 @@ func TestParserParse(t *testing.T) {
 		if tp != TypeArray {
 			t.Fatalf("unexpected type obtained for array: %#v", v)
 		}
-		a, err := v.Array()
+		a, err := v.ToArray()
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1149,13 +1149,13 @@ func TestParserParse(t *testing.T) {
 		f = func(k []byte, v *Value) {
 			switch v.Type() {
 			case TypeObject:
-				o, err := v.Object()
+				o, err := v.ToObject()
 				if err != nil {
 					t.Fatalf("cannot obtain object: %s", err)
 				}
 				o.Visit(f)
 			case TypeArray:
-				a, err := v.Array()
+				a, err := v.ToArray()
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
 				}
@@ -1163,13 +1163,13 @@ func TestParserParse(t *testing.T) {
 					f(nil, vv)
 				}
 			case TypeString:
-				sb, err := v.StringBytes()
+				sb, err := v.ToStringBytes()
 				if err != nil {
 					t.Fatalf("cannot obtain string: %s", err)
 				}
 				n += len(sb)
 			case TypeNumber:
-				nn, err := v.Int()
+				nn, err := v.ToInt()
 				if err != nil {
 					t.Fatalf("cannot obtain int: %s", err)
 				}
@@ -1182,7 +1182,7 @@ func TestParserParse(t *testing.T) {
 		if err != nil {
 			t.Fatalf("cannot parse largeFixture: %s", err)
 		}
-		o, err := v.Object()
+		o, err := v.ToObject()
 		if err != nil {
 			t.Fatalf("cannot obtain object: %s", err)
 		}
