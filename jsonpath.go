@@ -4,7 +4,7 @@ package fastjson
 import (
 	"errors"
 	"fmt"
-	"github.com/valyala/fastjson/fastfloat"
+	"github.com/JimWen/fastjson/fastfloat"
 	"go/token"
 	"go/types"
 	"regexp"

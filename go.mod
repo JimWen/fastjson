@@ -1,3 +1,3 @@
-module github.com/valyala/fastjson
+module github.com/JimWen/fastjson
 
 go 1.12
