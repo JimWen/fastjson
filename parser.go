@@ -857,7 +857,7 @@ func (v *Value) GetUint64(keys ...string) uint64 {
 // The returned string is valid until Parse is called on the Parser returned v.
 func (v *Value) GetStringBytes(keys ...string) []byte {
 	v = v.Get(keys...)
-	if v == nil || v.Type() != TypeString || v.Type() != typeRawString {
+	if v == nil || v.Type() != TypeString {
 		return nil
 	}
 	return s2b(v.s)
@@ -865,7 +865,7 @@ func (v *Value) GetStringBytes(keys ...string) []byte {
 
 func (v *Value) GetString(keys ...string) string {
 	v = v.Get(keys...)
-	if v == nil || v.Type() != TypeString || v.Type() != typeRawString {
+	if v == nil || v.Type() != TypeString {
 		return ""
 	}
 	return v.s
@@ -930,14 +930,14 @@ func (v *Value) MustArray() []*Value {
 //
 // Use GetStringBytes if you don't need error handling.
 func (v *Value) ToStringBytes() ([]byte, error) {
-	if v.Type() != TypeString && v.Type() != typeRawString {
+	if v.Type() != TypeString {
 		return nil, fmt.Errorf("value doesn't contain string; it contains %s", v.Type())
 	}
 	return s2b(v.s), nil
 }
 
 func (v *Value) MustStringBytes() []byte {
-	if v.Type() != TypeString && v.Type() != typeRawString {
+	if v.Type() != TypeString {
 		panic(fmt.Errorf("value doesn't contain string; it contains %s", v.Type()))
 	}
 
@@ -945,7 +945,7 @@ func (v *Value) MustStringBytes() []byte {
 }
 
 func (v *Value) ToString() (string, error) {
-	if v.Type() != TypeString && v.Type() != typeRawString {
+	if v.Type() != TypeString {
 		return "", fmt.Errorf("value doesn't contain string; it contains %s", v.Type())
 	}
 
@@ -953,7 +953,7 @@ func (v *Value) ToString() (string, error) {
 }
 
 func (v *Value) MustString() string {
-	if v.Type() != TypeString && v.Type() != typeRawString {
+	if v.Type() != TypeString {
 		panic(fmt.Errorf("value doesn't contain string; it contains %s", v.Type()))
 	}
 

@@ -670,8 +670,8 @@ func eval_reg_filter(obj, root *Value, lp string, pat *regexp.Regexp) (res bool,
 	if err != nil {
 		return false, err
 	}
-	switch lp_v.t {
-	case TypeString, typeRawString:
+	switch lp_v.Type() {
+	case TypeString:
 		return pat.MatchString(lp_v.s), nil
 	default:
 		return false, errors.New("only string can match with regular expression")
@@ -716,7 +716,7 @@ func isNumber(o *Value) bool {
 	switch o.Type() {
 	case TypeNumber:
 		return true
-	case TypeString, typeRawString:
+	case TypeString:
 		_, err := strconv.ParseFloat(o.s, 64)
 		if err == nil {
 			return true
