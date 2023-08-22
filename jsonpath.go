@@ -1,3 +1,4 @@
+// port from https://github.com/oliveagle/jsonpath
 package fastjson
 
 import (
