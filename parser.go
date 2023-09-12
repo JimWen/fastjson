@@ -424,11 +424,25 @@ func parseRawNumber(s string) (string, string, error) {
 	// The caller must ensure len(s) > 0
 
 	// Find the end of the number.
+	// https://github.com/valyala/fastjson/pull/89
+	dotFound := false
+	eFound := false
+
+	// Find the end of the number.
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
-		if (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == 'e' || ch == 'E' || ch == '+' {
+		if (ch >= '0' && ch <= '9') || ch == '-' || ch == '+' {
 			continue
 		}
+		if ch == '.' && !dotFound {
+			dotFound = true
+			continue
+		}
+		if (ch == 'e' || ch == 'E') && !eFound {
+			eFound = true
+			continue
+		}
+
 		if i == 0 || i == 1 && (s[0] == '-' || s[0] == '+') {
 			if len(s[i:]) >= 3 {
 				xs := s[i : i+3]
@@ -561,6 +575,17 @@ func (o *Object) Visit(f func(key []byte, v *Value)) {
 	for _, kv := range o.kvs {
 		f(s2b(kv.k), kv.v)
 	}
+}
+
+// https://github.com/valyala/fastjson/pull/82
+// GetKeys returns a slice of strings of all the keys of the
+// parsed JSON object.
+func (o *Object) GetKeys() []string {
+	var keys []string
+	for _, key := range o.kvs {
+		keys = append(keys, key.k)
+	}
+	return keys[:]
 }
 
 // Value represents any JSON value.
@@ -713,6 +738,36 @@ func (v *Value) Exists(keys ...string) bool {
 	return v != nil
 }
 
+func (v *Value) Empty(keys ...string) bool {
+	v = v.Get(keys...)
+
+	if v == nil {
+		return true
+	}
+
+	switch v.Type() {
+	case TypeObject:
+		return v.o.Len() == 0
+	case TypeArray:
+		for _, v := range v.a {
+			if v != nil {
+				return false
+			}
+		}
+		return true
+	case TypeString:
+		return len(v.s) == 0
+	case TypeNumber:
+		return false
+	case TypeTrue:
+		return false
+	case TypeFalse:
+		return false
+	default:
+		return true
+	}
+}
+
 // Get returns value by the given keys path.
 //
 // ToArray indexes may be represented as decimal numbers in keys.
@@ -863,6 +918,7 @@ func (v *Value) GetStringBytes(keys ...string) []byte {
 	return s2b(v.s)
 }
 
+// 可能存在问题 https://github.com/valyala/fastjson/pull/54
 func (v *Value) GetString(keys ...string) string {
 	v = v.Get(keys...)
 	if v == nil || v.Type() != TypeString {

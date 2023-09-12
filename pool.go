@@ -44,9 +44,11 @@ func (ap *ArenaPool) Get() *Arena {
 	return v.(*Arena)
 }
 
+// https://github.com/valyala/fastjson/issues/61
 // Put returns a to ap.
 //
 // a and objects created by a cannot be used after a is put into ap.
 func (ap *ArenaPool) Put(a *Arena) {
+	a.Reset()
 	ap.pool.Put(a)
 }

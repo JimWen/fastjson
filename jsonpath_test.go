@@ -114,6 +114,64 @@ func Test_jsonpath_JsonPathLookup_1(t *testing.T) {
 	}
 }
 
+func Test_jsonpath_JsonPathExists_1(t *testing.T) {
+	// key from root
+	res := JsonPathExists(json_data, "$.expensive")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.expensive2")
+	t.Log(res)
+
+	// single index
+	res = JsonPathExists(json_data, "$.store.book[0].price")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[0].price2")
+	t.Log(res)
+
+	// nagtive single index
+	res = JsonPathExists(json_data, "$.store.book[-1].isbn")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[-1].isbn2")
+	t.Log(res)
+
+	// multiple index
+	res = JsonPathExists(json_data, "$.store.book[0,1].price")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[0,1].price2")
+	t.Log(res)
+
+	// multiple index
+	res = JsonPathExists(json_data, "$.store.book[0,1].title")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[0,1].title3")
+	t.Log(res)
+
+	// full array
+	res = JsonPathExists(json_data, "$.store.book[0:].price")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[0:].price2")
+	t.Log(res)
+
+	// judge
+	res = JsonPathExists(json_data, "$.store.book[?(@.isbn)].isbn")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[?(@.isbn2)].isbn")
+	t.Log(res)
+
+	// compare
+	res = JsonPathExists(json_data, "$.store.book[?(@.price > 10)].title")
+	t.Log(res)
+
+	res = JsonPathExists(json_data, "$.store.book[?(@.price > 10)].title2")
+	t.Log(res)
+}
+
 func Test_jsonpath_JsonPathLookup_filter(t *testing.T) {
 	res, err := JsonPathLookup(json_data, "$.store.book[?(@.isbn)].isbn")
 	t.Log(err, res)

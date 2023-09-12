@@ -55,6 +55,15 @@ func JsonPathLookup(obj *Value, jpath string) (*Value, error) {
 	return c.Lookup(obj)
 }
 
+func JsonPathExists(obj *Value, jpath string) bool {
+	c, err := Compile(jpath)
+	if err != nil {
+		return false
+	}
+
+	return c.Exists(obj)
+}
+
 type Compiled struct {
 	path  string
 	steps []step
@@ -99,6 +108,15 @@ func Compile(jpath string) (*Compiled, error) {
 
 func (c *Compiled) String() string {
 	return fmt.Sprintf("Compiled lookup: %s", c.path)
+}
+
+func (c *Compiled) Exists(root *Value) bool {
+	v, err := c.Lookup(root)
+	if err != nil {
+		return false
+	}
+
+	return v.Exists() && !v.Empty()
 }
 
 func (c *Compiled) Lookup(root *Value) (*Value, error) {

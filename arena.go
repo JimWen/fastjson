@@ -8,10 +8,10 @@ import (
 //
 // Typical Arena lifecycle:
 //
-//     1) Construct Values via the Arena and Value.Set* calls.
-//     2) Marshal the constructed Values with Value.MarshalTo call.
-//     3) Reset all the constructed Values at once by Arena.Reset call.
-//     4) Go to 1 and re-use the Arena.
+//  1. Construct Values via the Arena and Value.Set* calls.
+//  2. Marshal the constructed Values with Value.MarshalTo call.
+//  3. Reset all the constructed Values at once by Arena.Reset call.
+//  4. Go to 1 and re-use the Arena.
 //
 // It is unsafe calling Arena methods from concurrent goroutines.
 // Use per-goroutine Arenas or ArenaPool instead.
@@ -107,6 +107,19 @@ func (a *Arena) NewNumberString(s string) *Value {
 	v := a.c.getValue()
 	v.t = TypeNumber
 	v.s = s
+	return v
+}
+
+// https://github.com/valyala/fastjson/pull/77
+// NewNumberBytes returns new number value containing s.
+//
+// The returned number is valid until Reset is called on a.
+func (a *Arena) NewNumberBytes(b []byte) *Value {
+	v := a.c.getValue()
+	v.t = TypeNumber
+	bLen := len(a.b)
+	a.b = append(a.b, b...)
+	v.s = b2s(a.b[bLen:])
 	return v
 }
 
