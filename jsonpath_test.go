@@ -197,6 +197,9 @@ func Test_jsonpath_JsonPathLookup_filter(t *testing.T) {
 	t.Log(err, res)
 	res, err = JsonPathLookup(json_data, "$.store.book[?(@.price < $.expensive)].price")
 	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$.store.book[?(@.price != 12.99)]")
+	t.Log(err, res)
 }
 
 func Test_jsonpath_authors_of_all_books(t *testing.T) {

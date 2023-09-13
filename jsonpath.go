@@ -747,7 +747,7 @@ func isNumber(o *Value) bool {
 
 func cmp_any(obj1, obj2 *Value, op string) (bool, error) {
 	switch op {
-	case "<", "<=", "==", ">=", ">":
+	case "<", "<=", "==", "!=", ">=", ">":
 	default:
 		return false, fmt.Errorf("op should only be <, <=, ==, >= and >")
 	}
