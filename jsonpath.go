@@ -14,6 +14,26 @@ import (
 
 var ErrGetFromNullObj = errors.New("get attribute from null object")
 
+// 操作符参数
+type Param struct {
+	p       string
+	isField bool // 是否是json字段 否则为常量
+}
+
+// 过滤操作对应的计算三元组
+type FilterTuple struct {
+	lp Param
+	op string
+	rp Param
+}
+
+// 逻辑表达式串联的计算三元组
+type FilterTupleGroup struct {
+	tuples  []FilterTuple
+	logics  []string
+	mustOne bool
+}
+
 func JsonPathLookupRaw(obj *Value, jpath string) (interface{}, error) {
 	c, err := Compile(jpath)
 	if err != nil {
@@ -84,7 +104,7 @@ func MustCompile(jpath string) *Compiled {
 }
 
 func Compile(jpath string) (*Compiled, error) {
-	tokens, err := tokenize(jpath)
+	tokens, err := tokenize(jpath, false)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +251,7 @@ func (c *Compiled) Lookup(root *Value) (*Value, error) {
 	return obj, nil
 }
 
-func tokenize(query string) ([]string, error) {
+func tokenize(query string, isFilter bool) ([]string, error) {
 	tokens := []string{}
 	//	token_start := false
 	//	token_end := false
@@ -245,10 +265,12 @@ func tokenize(query string) ([]string, error) {
 			if token == "$" || token == "@" {
 				tokens = append(tokens, token[:])
 				token = ""
-				continue
-			} else {
+			} else if !isFilter {
+				// 对于filter 不强制要求必须$/@开头 默认字段取@含义
 				return nil, fmt.Errorf("should start with '$'")
 			}
+
+			continue
 		}
 		if token == "." {
 			continue
@@ -442,16 +464,17 @@ func parse_bracket_token(token string) (op string, args interface{}, err error) 
 }
 
 func filter_get_from_explicit_path(obj *Value, path string) (*Value, error) {
-	steps, err := tokenize(path)
+	steps, err := tokenize(path, true)
 	//fmt.Println("f: steps: ", steps, err)
 	//fmt.Println(path, steps)
 	if err != nil {
 		return nil, err
 	}
-	if steps[0] != "@" && steps[0] != "$" {
-		return nil, fmt.Errorf("$ or @ should in front of filter path")
+
+	if steps[0] == "@" || steps[0] == "$" {
+		steps = steps[1:]
 	}
-	steps = steps[1:]
+
 	xobj := obj
 	//fmt.Println("f: xobj", xobj)
 	for _, s := range steps {
@@ -602,7 +625,7 @@ func regFilterCompile(rule string) (*regexp.Regexp, error) {
 }
 
 func get_filtered(obj, root *Value, filter string) (bool, []*Value, error) {
-	lp, op, rp, err := parse_filter(filter)
+	filterGroup, err := parse_filter_group(filter)
 	if err != nil {
 		return true, nil, err
 	}
@@ -611,25 +634,37 @@ func get_filtered(obj, root *Value, filter string) (bool, []*Value, error) {
 
 	switch obj.t {
 	case TypeArray:
-		if op == "=~" {
-			// regexp
-			pat, err := regFilterCompile(rp)
-			if err != nil {
-				return true, nil, err
-			}
-
-			for _, tmp := range obj.a {
-				ok, err := eval_reg_filter(tmp, root, lp, pat)
+		if filterGroup.mustOne || len(filterGroup.tuples) == 1 {
+			if filterGroup.tuples[0].op == "=~" {
+				// regexp
+				pat, err := regFilterCompile(filterGroup.tuples[0].rp.p)
 				if err != nil {
 					return true, nil, err
 				}
-				if ok == true {
-					res = append(res, tmp)
+
+				for _, tmp := range obj.a {
+					ok, err := eval_reg_filter(tmp, root, filterGroup.tuples[0].lp, pat)
+					if err != nil {
+						return true, nil, err
+					}
+					if ok == true {
+						res = append(res, tmp)
+					}
+				}
+			} else {
+				for _, tmp := range obj.a {
+					ok, err := eval_filter(tmp, root, filterGroup.tuples[0])
+					if err != nil {
+						return true, nil, err
+					}
+					if ok == true {
+						res = append(res, tmp)
+					}
 				}
 			}
 		} else {
 			for _, tmp := range obj.a {
-				ok, err := eval_filter(tmp, root, lp, op, rp)
+				ok, err := eval_filter_group(tmp, root, filterGroup)
 				if err != nil {
 					return true, nil, err
 				}
@@ -642,25 +677,37 @@ func get_filtered(obj, root *Value, filter string) (bool, []*Value, error) {
 		return true, res, nil
 
 	case TypeObject:
-		if op == "=~" {
-			// regexp
-			pat, err := regFilterCompile(rp)
+		if filterGroup.mustOne || len(filterGroup.tuples) == 1 {
+			if filterGroup.tuples[0].op == "=~" {
+
+				// regexp
+				pat, err := regFilterCompile(filterGroup.tuples[0].rp.p)
+				if err != nil {
+					return false, nil, err
+				}
+
+				ok, err := eval_reg_filter(obj, root, filterGroup.tuples[0].lp, pat)
+				if err != nil {
+					return false, nil, err
+				}
+				if ok == true {
+					res = append(res, obj)
+				}
+			} else {
+				ok, err := eval_filter(obj, root, filterGroup.tuples[0])
+				if err != nil {
+					return false, nil, err
+				}
+				if ok == true {
+					res = append(res, obj)
+				}
+			}
+		} else {
+			ok, err := eval_filter_group(obj, root, filterGroup)
 			if err != nil {
 				return false, nil, err
 			}
 
-			ok, err := eval_reg_filter(obj, root, lp, pat)
-			if err != nil {
-				return false, nil, err
-			}
-			if ok == true {
-				res = append(res, obj)
-			}
-		} else {
-			ok, err := eval_filter(obj, root, lp, op, rp)
-			if err != nil {
-				return false, nil, err
-			}
 			if ok == true {
 				res = append(res, obj)
 			}
@@ -673,12 +720,53 @@ func get_filtered(obj, root *Value, filter string) (bool, []*Value, error) {
 	}
 }
 
+func parse_filter_group(filter_group string) (ret FilterTupleGroup, err error) {
+	// Split the string by logical operators
+	var splits []string
+
+	// TODO 可以改成扫描字符串解析的方式 更高效
+	s := filter_group
+	for {
+		i := strings.IndexAny(s, "||&&")
+		if i == -1 {
+			splits = append(splits, s)
+			break
+		}
+		splits = append(splits, s[:i])
+		splits = append(splits, string(s[i:i+2]))
+		s = s[i+2:]
+	}
+
+	for _, part := range splits {
+		if part == "||" || part == "&&" {
+			// If the part is a logical operator, add it to the logics slice
+			ret.logics = append(ret.logics, part)
+		} else {
+			filter, err := parse_filter(strings.Trim(part, " "))
+			if err != nil {
+				return FilterTupleGroup{}, err
+			}
+
+			if filter.op == "=~" || filter.op == "exists" {
+				ret.mustOne = true
+			}
+			ret.tuples = append(ret.tuples, filter)
+
+			if ret.mustOne && len(ret.tuples) > 1 {
+				return FilterTupleGroup{}, errors.New("don't support multiple regex/exists filter yet ")
+			}
+		}
+	}
+
+	return ret, nil
+}
+
 // @.isbn                 => @.isbn, exists, nil
 // @.price < 10           => @.price, <, 10
 // @.price <= $.expensive => @.price, <=, $.expensive
 // @.author =~ /.*REES/i  => @.author, match, /.*REES/i
-
-func parse_filter(filter string) (lp string, op string, rp string, err error) {
+// TODO 这里默认强制左边是字段 右边是字符串 可以有更优的判断实现方式
+func parse_filter(filter string) (ret FilterTuple, err error) {
 	tmp := ""
 
 	stage := 0
@@ -691,11 +779,13 @@ func parse_filter(filter string) (lp string, op string, rp string, err error) {
 			} else {
 				switch stage {
 				case 0:
-					lp = tmp
+					ret.lp.p = tmp
+					ret.lp.isField = true
 				case 1:
-					op = tmp
+					ret.op = tmp
 				case 2:
-					rp = tmp
+					ret.rp.p = tmp
+					ret.rp.isField = false
 				}
 				tmp = ""
 			}
@@ -706,17 +796,19 @@ func parse_filter(filter string) (lp string, op string, rp string, err error) {
 			}
 			switch stage {
 			case 0:
-				lp = tmp
+				ret.lp.p = tmp
+				ret.lp.isField = true
 			case 1:
-				op = tmp
+				ret.op = tmp
 			case 2:
-				rp = tmp
+				ret.rp.p = tmp
+				ret.rp.isField = false
 			}
 			tmp = ""
 
 			stage += 1
 			if stage > 2 {
-				return "", "", "", errors.New(fmt.Sprintf("invalid char at %d: `%c`", idx, c))
+				return ret, errors.New(fmt.Sprintf("invalid char at %d: `%c`", idx, c))
 			}
 		default:
 			tmp += string(c)
@@ -725,16 +817,18 @@ func parse_filter(filter string) (lp string, op string, rp string, err error) {
 	if tmp != "" {
 		switch stage {
 		case 0:
-			lp = tmp
-			op = "exists"
+			ret.lp.p = tmp
+			ret.lp.isField = true
+			ret.op = "exists"
 		case 1:
-			op = tmp
+			ret.op = tmp
 		case 2:
-			rp = tmp
+			ret.rp.p = tmp
+			ret.rp.isField = false
 		}
 		tmp = ""
 	}
-	return lp, op, rp, err
+	return ret, err
 }
 
 func parse_filter_v1(filter string) (lp string, op string, rp string, err error) {
@@ -776,7 +870,7 @@ func parse_filter_v1(filter string) (lp string, op string, rp string, err error)
 	return lp, op, rp, err
 }
 
-func eval_reg_filter(obj, root *Value, lp string, pat *regexp.Regexp) (res bool, err error) {
+func eval_reg_filter(obj, root *Value, lp Param, pat *regexp.Regexp) (res bool, err error) {
 	if pat == nil {
 		return false, errors.New("nil pat")
 	}
@@ -792,38 +886,84 @@ func eval_reg_filter(obj, root *Value, lp string, pat *regexp.Regexp) (res bool,
 	}
 }
 
-func get_lp_v(obj, root *Value, lp string) (*Value, error) {
+func get_lp_v(obj, root *Value, lp Param) (*Value, error) {
 	var lp_v *Value
-	if strings.HasPrefix(lp, "@.") {
-		return filter_get_from_explicit_path(obj, lp)
-	} else if strings.HasPrefix(lp, "$.") {
-		return filter_get_from_explicit_path(root, lp)
+	if strings.HasPrefix(lp.p, "@.") {
+		return filter_get_from_explicit_path(obj, lp.p)
+	} else if strings.HasPrefix(lp.p, "$.") {
+		return filter_get_from_explicit_path(root, lp.p)
+	} else if lp.isField {
+		// 默认字段取@.含义
+		return filter_get_from_explicit_path(obj, lp.p)
 	} else {
-		lp_v = &Value{s: lp, t: TypeString}
+		lp_v = &Value{s: lp.p, t: TypeString}
 	}
 	return lp_v, nil
 }
 
-func eval_filter(obj, root *Value, lp, op, rp string) (res bool, err error) {
-	lp_v, err := get_lp_v(obj, root, lp)
+func get_rp_v(obj, root *Value, rp Param) (*Value, error) {
+	var rp_v *Value
+	if strings.HasPrefix(rp.p, "@.") {
+		return filter_get_from_explicit_path(obj, rp.p)
+	} else if strings.HasPrefix(rp.p, "$.") {
+		return filter_get_from_explicit_path(root, rp.p)
+	} else if rp.isField {
+		// 默认字段取@.含义
+		return filter_get_from_explicit_path(obj, rp.p)
+	} else {
+		rp_v = &Value{s: rp.p, t: TypeString}
+	}
+	return rp_v, nil
+}
 
-	if op == "exists" {
+func eval_filter(obj, root *Value, filter FilterTuple) (res bool, err error) {
+	lp_v, err := get_lp_v(obj, root, filter.lp)
+
+	if filter.op == "exists" {
 		return lp_v != nil, nil
-	} else if op == "=~" {
+	} else if filter.op == "=~" {
 		return false, fmt.Errorf("not implemented yet")
 	} else {
-		var rp_v *Value
-		if strings.HasPrefix(rp, "@.") {
-			rp_v, err = filter_get_from_explicit_path(obj, rp)
-		} else if strings.HasPrefix(rp, "$.") {
-			rp_v, err = filter_get_from_explicit_path(root, rp)
-		} else {
-			rp_v = &Value{s: rp, t: TypeString}
-		}
+		rp_v, _ := get_rp_v(obj, root, filter.rp)
 
 		//fmt.Printf("lp_v: %v, rp_v: %v\n", lp_v, rp_v)
-		return cmp_any(lp_v, rp_v, op)
+		return cmp_any(lp_v, rp_v, filter.op)
 	}
+}
+
+func eval_filter_group(obj, root *Value, filter_group FilterTupleGroup) (res bool, err error) {
+	for idx, filter := range filter_group.tuples {
+		if idx == 0 {
+			res, err = eval_filter(obj, root, filter)
+			if err != nil {
+				return false, err
+			}
+		} else {
+			// 实现左值阻断逻辑
+			switch filter_group.logics[idx-1] {
+			case "&&":
+				if res == false {
+					return false, nil
+				}
+				res, err = eval_filter(obj, root, filter)
+				if err != nil {
+					return false, err
+				}
+			case "||":
+				if res == true {
+					return true, nil
+				}
+				res, err = eval_filter(obj, root, filter)
+				if err != nil {
+					return false, err
+				}
+			default:
+				return false, fmt.Errorf("invalid logic operator: %v", filter_group.logics[idx-1])
+			}
+		}
+	}
+
+	return res, nil
 }
 
 func isNumber(o *Value) bool {

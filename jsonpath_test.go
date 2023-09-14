@@ -290,7 +290,7 @@ func Test_jsonpath_tokenize(t *testing.T) {
 		t.Logf("idx[%d], tcase: %v", idx, tcase)
 		query := tcase["query"].(string)
 		expected_tokens := tcase["tokens"].([]string)
-		tokens, err := tokenize(query)
+		tokens, err := tokenize(query, false)
 		t.Log(err, tokens, expected_tokens)
 		if len(tokens) != len(expected_tokens) {
 			t.Errorf("different length: (got)%v, (expected)%v", len(tokens), len(expected_tokens))
@@ -404,11 +404,52 @@ var parse_token_cases = []map[string]interface{}{
 	},
 }
 
+func Test_my_jsonpath_parse_filter_group(t *testing.T) {
+	token := "@.expensive == 10 || @.expensive == 9"
+
+	ret, err := parse_filter_group(token)
+	t.Log(err, ret)
+
+	token = "@.price < 10 && @.author =~ /.*REES/"
+	ret, err = parse_filter_group(token)
+	t.Log(err, ret)
+
+	token = "@.price < 10 || @.author"
+	ret, err = parse_filter_group(token)
+	t.Log(err, ret)
+
+	token = "@.price < 10 || @.author == 'xxx'"
+	ret, err = parse_filter_group(token)
+	t.Log(err, ret)
+
+	token = "@.price < 10 || @.author == 'xxx' && @.author != 'yyy'"
+	ret, err = parse_filter_group(token)
+	t.Log(err, ret)
+}
+
+func Test_my_jsonpath_tokenize_filter(t *testing.T) {
+	token := "@.expensive == 10"
+	ret, err := tokenize(token, true)
+	t.Log(ret, err)
+
+	token = "expensive == 10"
+	ret, err = tokenize(token, true)
+	t.Log(ret, err)
+
+	token = "$[container_id != '']"
+
+	op, key, args, err := parse_token(token)
+	t.Logf("got: err: %v, op: %v, key: %v, args: %v\n", err, op, key, args)
+}
+
 func Test_my_jsonpath_parse_token(t *testing.T) {
 	res, err := JsonPathLookup(json_data, "$[?(@.expensive == 10)].store.book")
 	t.Log(err, res)
 
-	res, err = JsonPathLookup(json_data, "$[@.expensive == 10].store.book")
+	res, err = JsonPathLookup(json_data, "$[@.expensive == 10 || @.expensive == 9].store.book")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[expensive == 10].store.book")
 	t.Log(err, res)
 
 	res, err = JsonPathLookup(json_data, "$[@.expensive == 9].store.book")
@@ -429,13 +470,11 @@ func Test_my_jsonpath_parse_token(t *testing.T) {
 	res, err = JsonPathLookup(json_data, "$[expensive == 10]['expensive', 'expensive2']")
 	t.Log(err, res)
 
-	//res, err = JsonPathLookup(json_data, "$[@.expensive == 10]['store']['book']['category', 'author']")
-	//t.Log(err, res)
+	res, err = JsonPathLookup(json_data, "$[@.expensive == 10]['store']['book']['category']")
+	t.Log(err, res)
 
-	token := "$[container_id != '']"
-
-	op, key, args, err := parse_token(token)
-	t.Logf("got: err: %v, op: %v, key: %v, args: %v\n", err, op, key, args)
+	res, err = JsonPathLookup(json_data, "$[@.expensive == 10]['store']['book']['category', 'author']")
+	t.Log(err, res)
 }
 
 func Test_jsonpath_parse_token(t *testing.T) {
@@ -728,19 +767,19 @@ func Test_jsonpath_parse_filter(t *testing.T) {
 
 	//for _, tcase := range tcase_parse_filter[4:] {
 	for _, tcase := range tcase_parse_filter {
-		lp, op, rp, _ := parse_filter(tcase["filter"].(string))
+		ret, _ := parse_filter(tcase["filter"].(string))
 		t.Log(tcase)
-		t.Logf("lp: %v, op: %v, rp: %v", lp, op, rp)
-		if lp != tcase["exp_lp"].(string) {
-			t.Errorf("%s(got) != %v(exp_lp)", lp, tcase["exp_lp"])
+		t.Logf("lp: %v, op: %v, rp: %v", ret.lp.p, ret.op, ret.rp.p)
+		if ret.lp.p != tcase["exp_lp"].(string) {
+			t.Errorf("%s(got) != %v(exp_lp)", ret.lp.p, tcase["exp_lp"])
 			return
 		}
-		if op != tcase["exp_op"].(string) {
-			t.Errorf("%s(got) != %v(exp_op)", op, tcase["exp_op"])
+		if ret.op != tcase["exp_op"].(string) {
+			t.Errorf("%s(got) != %v(exp_op)", ret.op, tcase["exp_op"])
 			return
 		}
-		if rp != tcase["exp_rp"].(string) {
-			t.Errorf("%s(got) != %v(exp_rp)", rp, tcase["exp_rp"])
+		if ret.rp.p != tcase["exp_rp"].(string) {
+			t.Errorf("%s(got) != %v(exp_rp)", ret.rp.p, tcase["exp_rp"])
 			return
 		}
 	}
@@ -880,7 +919,7 @@ func Test_jsonpath_eval_filter(t *testing.T) {
 		rp := tcase["rp"].(string)
 		exp := tcase["exp"].(bool)
 		t.Logf("idx: %v, lp: %v, op: %v, rp: %v, exp: %v", idx, lp, op, rp, exp)
-		got, err := eval_filter(obj, root, lp, op, rp)
+		got, err := eval_filter(obj, root, FilterTuple{lp: Param{p: lp}, op: op, rp: Param{p: rp}})
 
 		if err != nil {
 			t.Errorf("idx: %v, failed to eval: %v", idx, err)
