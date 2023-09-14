@@ -127,9 +127,36 @@ func (c *Compiled) Lookup(root *Value) (*Value, error) {
 		// "key", "idx"
 		switch s.op {
 		case "key":
-			obj, err = get_key(obj, s.key)
-			if err != nil {
-				return nil, err
+			// 支持$.key1.key2
+			if len(s.key) > 0 {
+				obj, err = get_key(obj, s.key)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			// 如下支持 ['key1', 'key2'] or key3['key1', 'key2'] 计算
+			if s.args == nil {
+				continue
+			}
+
+			if len(s.args.([]string)) > 1 {
+				res := &Value{a: make([]*Value, 0), t: TypeArray}
+				for _, x := range s.args.([]string) {
+					tmp, err := get_key(obj, x)
+					if err != nil {
+						return nil, err
+					}
+					res.a = append(res.a, tmp)
+				}
+				obj = res
+			} else if len(s.args.([]string)) == 1 {
+				obj, err = get_key(obj, s.args.([]string)[0])
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, fmt.Errorf("cannot index on empty key slice")
 			}
 		case "idx":
 			if len(s.key) > 0 {
@@ -159,7 +186,7 @@ func (c *Compiled) Lookup(root *Value) (*Value, error) {
 				}
 			} else {
 				//fmt.Println("idx ----------------4")
-				return nil, fmt.Errorf("cannot index on empty slice")
+				return nil, fmt.Errorf("cannot index on empty index slice")
 			}
 		case "range":
 			if len(s.key) > 0 {
@@ -183,12 +210,20 @@ func (c *Compiled) Lookup(root *Value) (*Value, error) {
 				return nil, err
 			}
 
-			ret, err := get_filtered(obj, root, s.args.(string))
+			isArr, ret, err := get_filtered(obj, root, s.args.(string))
 			if err != nil {
 				return nil, err
 			}
 
-			obj = &Value{a: ret, t: TypeArray}
+			if isArr {
+				obj = &Value{a: ret, t: TypeArray}
+			} else {
+				if len(ret) == 0 {
+					return nil, nil
+				}
+
+				obj = ret[0]
+			}
 		default:
 			return nil, fmt.Errorf("expression don't support in filter")
 		}
@@ -331,20 +366,79 @@ func parse_token(token string) (op string, key string, args interface{}, err err
 			args = [2]interface{}{nil, nil}
 			return
 		} else {
-			// idx ------------------------------------------------
-			op = "idx"
-			res := []int{}
-			for _, x := range strings.Split(tail, ",") {
-				if i, err := strconv.Atoi(strings.Trim(x, " ")); err == nil {
-					res = append(res, i)
-				} else {
-					return "", "", nil, err
-				}
-			}
-			args = res
+			op, args, err = parse_bracket_token(tail)
 		}
 	}
-	return op, key, args, nil
+
+	return op, key, args, err
+}
+
+// 对jsonpath filter/idx/key  进一步解析
+func parse_bracket_token(token string) (op string, args interface{}, err error) {
+
+	hasKey := false
+	hasOp := false
+	hasLogic := false
+	for _, v := range token {
+		switch v {
+		// 字符串引号
+		case '\'':
+			hasKey = true
+
+		// 运算符运算符==  !=  <  <=  >  >=  =~
+		case '=', '!', '<', '>', '~':
+			hasOp = true
+
+		// 逻辑运算符&&  ||
+		case '&', '|':
+			hasLogic = true
+
+		default:
+			// 判断除了数字 逗号 26字母全部不合符
+			if (v < '0' || v > '9') && (v < 'a' || v > 'z') && (v < 'A' && v > 'Z') && v != ',' && v != '@' && v != '$' && v != '.' {
+				return "", "", fmt.Errorf("invalid token: %v", token)
+			}
+		}
+	}
+
+	// 用运算符==  !=  <  <=  >  >=  =~和逻辑运算符&&  ||来连接的表达式 => filter
+	if hasLogic || hasOp {
+		op = "filter"
+		args = strings.Trim(token, " ")
+		return op, args, nil
+	}
+
+	// 1.全部是逗号分割的字符串，类似'key1','key2','key3' => key
+	// 2.全部是字符串，类似'key' => key
+	if hasKey {
+		strs := strings.Split(token, ",")
+		strArr := make([]string, len(strs))
+		for i, str := range strs {
+			strArr[i] = strings.Trim(strings.Trim(str, " "), "'")
+		}
+
+		op = "key"
+		args = strArr
+
+		return op, args, nil
+	}
+
+	// 1.全部是逗号分割的数字，类似0,1,2,3 => idx
+	// 2.全部是数字，类似123 => idx
+	res := []int{}
+
+	for _, x := range strings.Split(token, ",") {
+		if i, err := strconv.Atoi(strings.Trim(x, " ")); err == nil {
+			res = append(res, i)
+		} else {
+			return "", nil, err
+		}
+	}
+
+	op = "idx"
+	args = res
+
+	return op, args, nil
 }
 
 func filter_get_from_explicit_path(obj *Value, path string) (*Value, error) {
@@ -394,6 +488,11 @@ func filter_get_from_explicit_path(obj *Value, path string) (*Value, error) {
 func get_key(obj *Value, key string) (*Value, error) {
 	if obj == nil {
 		return nil, ErrGetFromNullObj
+	}
+
+	// 部分jsonpath表达式，key为空比如 $[@.ext == 2]，此时直接操作$对应的obj
+	if len(key) == 0 {
+		return obj, nil
 	}
 
 	switch obj.t {
@@ -502,10 +601,10 @@ func regFilterCompile(rule string) (*regexp.Regexp, error) {
 	return regexp.Compile(string(runes))
 }
 
-func get_filtered(obj, root *Value, filter string) ([]*Value, error) {
+func get_filtered(obj, root *Value, filter string) (bool, []*Value, error) {
 	lp, op, rp, err := parse_filter(filter)
 	if err != nil {
-		return nil, err
+		return true, nil, err
 	}
 
 	res := make([]*Value, 0)
@@ -516,13 +615,13 @@ func get_filtered(obj, root *Value, filter string) ([]*Value, error) {
 			// regexp
 			pat, err := regFilterCompile(rp)
 			if err != nil {
-				return nil, err
+				return true, nil, err
 			}
 
 			for _, tmp := range obj.a {
 				ok, err := eval_reg_filter(tmp, root, lp, pat)
 				if err != nil {
-					return nil, err
+					return true, nil, err
 				}
 				if ok == true {
 					res = append(res, tmp)
@@ -532,49 +631,46 @@ func get_filtered(obj, root *Value, filter string) ([]*Value, error) {
 			for _, tmp := range obj.a {
 				ok, err := eval_filter(tmp, root, lp, op, rp)
 				if err != nil {
-					return nil, err
+					return true, nil, err
 				}
 				if ok == true {
 					res = append(res, tmp)
 				}
 			}
 		}
-		return res, nil
+
+		return true, res, nil
 
 	case TypeObject:
 		if op == "=~" {
 			// regexp
 			pat, err := regFilterCompile(rp)
 			if err != nil {
-				return nil, err
+				return false, nil, err
 			}
 
-			for _, tmp := range obj.o.kvs {
-				ok, err := eval_reg_filter(tmp.v, root, lp, pat)
-				if err != nil {
-					return nil, err
-				}
-				if ok == true {
-					res = append(res, tmp.v)
-				}
+			ok, err := eval_reg_filter(obj, root, lp, pat)
+			if err != nil {
+				return false, nil, err
+			}
+			if ok == true {
+				res = append(res, obj)
 			}
 		} else {
-			for _, tmp := range obj.o.kvs {
-				ok, err := eval_filter(tmp.v, root, lp, op, rp)
-				if err != nil {
-					return nil, err
-				}
-				if ok == true {
-					res = append(res, tmp.v)
-				}
+			ok, err := eval_filter(obj, root, lp, op, rp)
+			if err != nil {
+				return false, nil, err
+			}
+			if ok == true {
+				res = append(res, obj)
 			}
 		}
 
-	default:
-		return nil, fmt.Errorf("don't support filter on this type: %v", obj.t)
-	}
+		return false, res, nil
 
-	return res, nil
+	default:
+		return true, nil, fmt.Errorf("don't support filter on this type: %v", obj.t)
+	}
 }
 
 // @.isbn                 => @.isbn, exists, nil

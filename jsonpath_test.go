@@ -48,7 +48,9 @@ func init() {
             "price": 19.95
         }
     },
-    "expensive": 10
+    "expensive": 10,
+	"expensive2": 100,
+	"expensive3": 1000
 }
 `
 
@@ -199,6 +201,12 @@ func Test_jsonpath_JsonPathLookup_filter(t *testing.T) {
 	t.Log(err, res)
 
 	res, err = JsonPathLookup(json_data, "$.store.book[?(@.price != 12.99)]")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$.expensive")
 	t.Log(err, res)
 }
 
@@ -394,6 +402,40 @@ var parse_token_cases = []map[string]interface{}{
 		"key":   "*",
 		"args":  nil,
 	},
+}
+
+func Test_my_jsonpath_parse_token(t *testing.T) {
+	res, err := JsonPathLookup(json_data, "$[?(@.expensive == 10)].store.book")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[@.expensive == 10].store.book")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[@.expensive == 9].store.book")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[?(@.expensive == 10)]['store']['book']")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[?(@.expensive == 10)]['store']['book']['category']")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[?(@.expensive == 10)]['expensive']")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[?(@.expensive == 10)]['expensive', 'expensive2']")
+	t.Log(err, res)
+
+	res, err = JsonPathLookup(json_data, "$[expensive == 10]['expensive', 'expensive2']")
+	t.Log(err, res)
+
+	//res, err = JsonPathLookup(json_data, "$[@.expensive == 10]['store']['book']['category', 'author']")
+	//t.Log(err, res)
+
+	token := "$[container_id != '']"
+
+	op, key, args, err := parse_token(token)
+	t.Logf("got: err: %v, op: %v, key: %v, args: %v\n", err, op, key, args)
 }
 
 func Test_jsonpath_parse_token(t *testing.T) {
